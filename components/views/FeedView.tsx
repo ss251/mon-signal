@@ -1,77 +1,78 @@
 'use client'
 
+import { useEffect, useState, useCallback } from 'react'
 import { TradeCard, type Trade } from '@/components/ui/TradeCard'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { useFrame } from '@/components/farcaster-provider'
 import { sdk } from '@farcaster/miniapp-sdk'
+import type { TradeResponse } from '@/app/api/trades/route'
 
-// Mock data for demo - will be replaced with real data from API
-const MOCK_TRADES: Trade[] = [
-  {
-    id: '1',
-    type: 'buy',
-    trader: {
-      fid: 3621,
-      username: 'horsefacts.eth',
-      displayName: 'horsefacts',
-      pfpUrl: 'https://i.imgur.com/kVXj9Zz.jpg',
-    },
-    token: {
-      symbol: 'MONAD',
-      name: 'Monad Token',
-      address: '0x0000000000000000000000000000000000000001',
-    },
-    amount: '50000',
-    amountUsd: '2,450.00',
-    timestamp: new Date(Date.now() - 1000 * 60 * 2), // 2 min ago
-    txHash: '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef',
-  },
-  {
-    id: '2',
-    type: 'sell',
-    trader: {
-      fid: 194,
-      username: 'rish',
-      displayName: 'rish',
-      pfpUrl: 'https://i.imgur.com/Y3p7JQT.jpg',
-    },
-    token: {
-      symbol: 'USDC',
-      name: 'USD Coin',
-      address: '0x0000000000000000000000000000000000000002',
-    },
-    amount: '10000',
-    amountUsd: '10,000.00',
-    timestamp: new Date(Date.now() - 1000 * 60 * 15), // 15 min ago
-    txHash: '0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',
-  },
-  {
-    id: '3',
-    type: 'buy',
-    trader: {
-      fid: 5650,
-      username: 'vitalik.eth',
-      displayName: 'Vitalik Buterin',
-      pfpUrl: 'https://i.imgur.com/Qe8XQWV.jpg',
-    },
-    token: {
-      symbol: 'WETH',
-      name: 'Wrapped ETH',
-      address: '0x0000000000000000000000000000000000000003',
-    },
-    amount: '125.5',
-    amountUsd: '312,500.00',
-    timestamp: new Date(Date.now() - 1000 * 60 * 45), // 45 min ago
-    txHash: '0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234',
-  },
-]
+type FilterType = 'all' | 'buys' | 'sells'
 
 export function FeedView() {
   const { context } = useFrame()
-  // TODO: Replace with real data fetch
-  const trades = MOCK_TRADES
-  const isLoading = false
+  const [trades, setTrades] = useState<Trade[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [filter, setFilter] = useState<FilterType>('all')
+  const [stats, setStats] = useState({ buys: 0, sells: 0, volume: '0' })
   const isSubscribed = true // TODO: Check subscription status
+
+  const fetchTrades = useCallback(async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+
+      const response = await fetch('/api/trades?limit=50')
+      if (!response.ok) {
+        throw new Error('Failed to fetch trades')
+      }
+
+      const data = await response.json()
+
+      // Transform API response to Trade format
+      const transformedTrades: Trade[] = data.trades.map((t: TradeResponse) => ({
+        id: t.id,
+        type: t.type,
+        trader: t.trader || {
+          fid: 0,
+          username: t.fromAddress.slice(0, 10),
+          displayName: `${t.fromAddress.slice(0, 6)}...${t.fromAddress.slice(-4)}`,
+        },
+        token: t.token,
+        amount: t.amount,
+        amountUsd: t.amountUsd,
+        timestamp: new Date(t.timestamp),
+        txHash: t.txHash,
+      }))
+
+      setTrades(transformedTrades)
+
+      // Calculate stats
+      const buys = transformedTrades.filter((t) => t.type === 'buy').length
+      const sells = transformedTrades.filter((t) => t.type === 'sell').length
+      setStats({ buys, sells, volume: '$--' })
+    } catch (err) {
+      console.error('Error fetching trades:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load trades')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchTrades()
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchTrades, 30000)
+    return () => clearInterval(interval)
+  }, [fetchTrades])
+
+  const filteredTrades = trades.filter((trade) => {
+    if (filter === 'all') return true
+    if (filter === 'buys') return trade.type === 'buy'
+    if (filter === 'sells') return trade.type === 'sell'
+    return true
+  })
 
   if (!isSubscribed) {
     return (
@@ -105,6 +106,19 @@ export function FeedView() {
     )
   }
 
+  if (error) {
+    return (
+      <EmptyState
+        title="Error loading trades"
+        description={error}
+        action={{
+          label: 'Retry',
+          onClick: fetchTrades,
+        }}
+      />
+    )
+  }
+
   if (trades.length === 0) {
     return (
       <EmptyState
@@ -119,32 +133,54 @@ export function FeedView() {
       {/* Stats bar */}
       <div className="glass-card p-3 flex items-center justify-around opacity-0 animate-fade-in-up">
         <div className="text-center">
-          <p className="font-mono text-lg font-bold text-signal-buy">+24</p>
+          <p className="font-mono text-lg font-bold text-signal-buy">+{stats.buys}</p>
           <p className="text-[10px] text-text-muted uppercase tracking-wider">Buys</p>
         </div>
         <div className="w-px h-8 bg-border-subtle" />
         <div className="text-center">
-          <p className="font-mono text-lg font-bold text-signal-sell">-8</p>
+          <p className="font-mono text-lg font-bold text-signal-sell">-{stats.sells}</p>
           <p className="text-[10px] text-text-muted uppercase tracking-wider">Sells</p>
         </div>
         <div className="w-px h-8 bg-border-subtle" />
         <div className="text-center">
-          <p className="font-mono text-lg font-bold text-text-primary">$1.2M</p>
+          <p className="font-mono text-lg font-bold text-text-primary">{stats.volume}</p>
           <p className="text-[10px] text-text-muted uppercase tracking-wider">Volume</p>
         </div>
       </div>
 
       {/* Filter tabs */}
       <div className="tab-nav opacity-0 animate-fade-in-up stagger-1">
-        <button className="tab-item active">All</button>
-        <button className="tab-item">Buys</button>
-        <button className="tab-item">Sells</button>
+        <button
+          className={`tab-item ${filter === 'all' ? 'active' : ''}`}
+          onClick={() => setFilter('all')}
+        >
+          All
+        </button>
+        <button
+          className={`tab-item ${filter === 'buys' ? 'active' : ''}`}
+          onClick={() => setFilter('buys')}
+        >
+          Buys
+        </button>
+        <button
+          className={`tab-item ${filter === 'sells' ? 'active' : ''}`}
+          onClick={() => setFilter('sells')}
+        >
+          Sells
+        </button>
       </div>
 
       {/* Trade cards */}
-      {trades.map((trade, index) => (
+      {filteredTrades.map((trade, index) => (
         <TradeCard key={trade.id} trade={trade} index={index + 2} />
       ))}
+
+      {filteredTrades.length === 0 && (
+        <EmptyState
+          title={`No ${filter} yet`}
+          description={`No ${filter === 'buys' ? 'buy' : 'sell'} signals in this batch`}
+        />
+      )}
     </div>
   )
 }

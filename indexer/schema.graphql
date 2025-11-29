@@ -1,0 +1,31 @@
+# Trade entity - stores each ERC20 transfer as a trade
+type Trade {
+  # Unique ID: txHash-logIndex
+  id: ID!
+  # Transaction hash
+  txHash: String!
+  # Log index within the transaction
+  logIndex: Int!
+  # Block number
+  blockNumber: Int!
+  # Block timestamp (unix seconds)
+  blockTimestamp: Int!
+  # Token contract address
+  tokenAddress: String! @index
+  # Sender wallet address
+  fromAddress: String! @index
+  # Receiver wallet address
+  toAddress: String! @index
+  # Amount transferred (raw value)
+  amount: BigInt!
+}
+
+# Account entity - tracks unique wallets we've seen
+type Account {
+  # Wallet address
+  id: ID!
+  # Total number of trades (sends + receives)
+  tradeCount: Int!
+  # Last seen timestamp
+  lastSeen: Int!
+}
