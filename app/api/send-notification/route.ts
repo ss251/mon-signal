@@ -1,14 +1,17 @@
-import { notificationDetailsSchema } from "@farcaster/miniapp-core";
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { setUserNotificationDetails } from "@/lib/kv";
 import { sendFrameNotification } from "@/lib/notifs";
 
 const requestSchema = z.object({
   fid: z.number(),
-  notificationDetails: notificationDetailsSchema,
+  title: z.string().optional(),
+  body: z.string().optional(),
 });
 
+/**
+ * API route to send a test notification to a user.
+ * With Neynar managed notifications, we don't need notification tokens.
+ */
 export async function POST(request: NextRequest) {
   const requestJson = await request.json();
   const requestBody = requestSchema.safeParse(requestJson);
@@ -20,26 +23,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  await setUserNotificationDetails(
-    requestBody.data.fid,
-    requestBody.data.notificationDetails
-  );
-
   const sendResult = await sendFrameNotification({
     fid: requestBody.data.fid,
-    title: "Test notification",
-    body: "Sent at " + new Date().toISOString(),
+    title: requestBody.data.title || "Test notification",
+    body: requestBody.data.body || "Sent at " + new Date().toISOString(),
   });
 
   if (sendResult.state === "error") {
     return Response.json(
       { success: false, error: sendResult.error },
       { status: 500 }
-    );
-  } else if (sendResult.state === "rate_limit") {
-    return Response.json(
-      { success: false, error: "Rate limited" },
-      { status: 429 }
     );
   }
 
