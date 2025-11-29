@@ -1,294 +1,219 @@
-# Monad Farcaster MiniApp Template
+# Mon Signal
 
-The template demonstrates all Mini App capabilities and lets you easily modify it, so you can build Mini Apps.
+**Social Signals for Degens** — Turn your Farcaster feed into alpha.
 
-## Cloning the Template
+Mon Signal is a Farcaster Mini App that delivers real-time trading signals from Farcaster on Monad. When someone you follow makes a move — buy, sell, or swap — you get notified instantly.
 
-You can the following command to clone the Mini App template to your local machine:
+> Farcaster is your signal. No paid groups. Just trades that actually matter to you.
+
+## Features
+
+- **Watchlist** — Select which Farcaster accounts you want to track, with persistence across sessions
+- **Real-time Feed** — See ERC20 trades from your watchlist, enriched with Farcaster profiles
+- **Push Notifications** — Get notified when a watched wallet makes a trade (with rate limiting)
+- **Signal Detail View** — Deep-link from notifications to see trade details
+- **Copy Trade** — One-tap action to open a swap with the same token
+
+## Architecture
 
 ```
-git clone https://github.com/monad-developers/monad-miniapp-template.git
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Monad Chain   │────▶│  Envio HyperSync │────▶│  Hasura GraphQL │
+│  (ERC20 events) │     │    (Indexer)     │     │    (Database)   │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                                                          │
+                        ┌─────────────────────────────────┘
+                        ▼
+              ┌──────────────────┐     ┌─────────────────┐
+              │   Next.js App    │────▶│     Neynar      │
+              │   (API Routes)   │     │ (Farcaster API) │
+              └──────────────────┘     └─────────────────┘
+                        │
+          ┌─────────────┼─────────────┐
+          ▼             ▼             ▼
+    ┌──────────┐  ┌──────────┐  ┌───────────────┐
+    │  Redis   │  │  Client  │  │ Push Notifs   │
+    │(Upstash) │  │   App    │  │ (via Neynar)  │
+    └──────────┘  └──────────┘  └───────────────┘
 ```
 
-### Install the dependencies
+### Data Flow
 
-```
-yarn
+1. **Indexing**: Envio HyperIndex monitors all ERC20 `Transfer` events on Monad (wildcard mode)
+2. **Storage**: Trades are stored in Hasura/PostgreSQL with GraphQL access
+3. **Enrichment**: When trades are fetched, wallet addresses are mapped to Farcaster users via Neynar
+4. **Notifications**: The indexer calls a webhook for recent trades, which checks Redis for watchers and sends push notifications
+5. **Display**: The Mini App shows trades from watchlisted Farcaster accounts with filtering and detail views
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | Next.js 14, TailwindCSS, React Query |
+| Blockchain | Monad (Chain ID: 143) |
+| Indexer | Envio HyperIndex with HyperSync |
+| Farcaster | Neynar API |
+| Database | Hasura + PostgreSQL (via Envio) |
+| Cache/State | Upstash Redis |
+| Smart Contracts | Foundry (for test token) |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+
+- pnpm 10+
+- Docker (for local Envio indexer)
+
+### Environment Variables
+
+Create `.env.local` in the root directory:
+
+```env
+# App URL (use ngrok/cloudflared for local development)
+NEXT_PUBLIC_URL=https://your-app.ngrok.app
+
+# Neynar API for Farcaster integration
+NEYNAR_API_KEY=your-neynar-api-key
+
+# Upstash Redis for watchlist persistence
+UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
+UPSTASH_REDIS_REST_TOKEN=your-redis-token
+
+# Envio GraphQL endpoint
+ENVIO_GRAPHQL_URL=http://localhost:8080/v1/graphql
+ENVIO_ADMIN_SECRET=testing
+
+# Webhook secret (optional, for production)
+WEBHOOK_SECRET=your-webhook-secret
 ```
 
-### Copy `.env.example` over to `.env.local`
+For the indexer, create `indexer/.env`:
+
+```env
+# Webhook URL for notifications (your app's webhook endpoint)
+TRADE_WEBHOOK_URL=https://your-app.ngrok.app/api/webhook/trade
+WEBHOOK_SECRET=your-webhook-secret
+```
+
+### Running Locally
+
+**1. Start the Next.js app:**
 
 ```bash
-cp .env.example .env.local
+pnpm install
+pnpm dev
 ```
 
-### Run the template
+**2. Start the Envio indexer (in a separate terminal):**
 
 ```bash
-yarn run dev
+cd indexer
+pnpm install
+pnpm dev
 ```
 
-### View the App in Warpcast Embed tool
+The indexer will start syncing from Monad and expose a GraphQL endpoint at `http://localhost:8080/v1/graphql`.
 
-Warpcast has a neat [Embed tool](https://warpcast.com/~/developers/mini-apps/embed) that you can use to inspect the Mini App before you publish it.
-
-Unfortunately, the embed tool can only work with remote URL. Inputting a localhost URL does not work.
-
-As a workaround, you may make the local app accessible remotely using a tool like `cloudflared` or `ngrok`. In this guide we will use `cloudflared`.
-
-#### Install Cloudflared
+**3. Expose your local app for testing:**
 
 ```bash
-brew install cloudflared
-```
-
-For more installation options see the [official docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/).
-
-#### Expose localhost
-
-Run the following command in your terminal:
-
-```bash
+# Using cloudflared
 cloudflared tunnel --url http://localhost:3000
+
+# Or using ngrok
+ngrok http 3000
 ```
 
-Be sure to specify the correct port for your local server.
+Update `NEXT_PUBLIC_URL` and `TRADE_WEBHOOK_URL` with the tunnel URL.
 
-#### Set `NEXT_PUBLIC_URL` environment variable in `.env.local` file
+**4. Test in Warpcast:**
+
+Open the [Warpcast Mini App Embed tool](https://warpcast.com/~/developers/mini-apps/embed) and enter your tunnel URL.
+
+## API Routes
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/trades` | GET | Fetch trades, optionally filtered by watchlist (`?fid=123`) |
+| `/api/watchlist` | GET | Get a user's watchlist (`?fid=123`) |
+| `/api/watchlist` | POST | Add/remove from watchlist |
+| `/api/webhook/trade` | POST | Receive trade events from indexer |
+| `/api/signal` | GET | Get a specific signal by txHash (`?id=0x...`) |
+
+## Limitations
+
+### Farcaster SDK Swap Support
+
+The Farcaster Mini App SDK's `swapToken` action currently **does not support Monad** (neither mainnet chain ID 143 nor testnet chain ID 10143). When a user taps "Copy Trade", the app attempts to open the swap interface using the [CAIP-19](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-19.md) asset identifier format:
+
+```typescript
+// Format: eip155:{chainId}/erc20:{tokenAddress}
+const tokenAssetId = `eip155:143/erc20:${tokenAddress}`
+await sdk.actions.swapToken({ buyToken: tokenAssetId })
+```
+
+However, since Monad is not yet in the supported chain list, the swap modal will fail to execute the trade. This is a Farcaster platform limitation that will be resolved when Monad is officially added to Warpcast's supported swap networks.
+
+### Native Token Transfers
+
+The indexer only captures **ERC20 Transfer events**. Native MON transfers do not emit events and will not appear in the feed or trigger notifications. Only token contract interactions are indexed.
+
+## Test Token
+
+For development and testing, a simple ERC20 token contract is included:
+
+**MonSignal (MONSIG)** — Deployed on Monad Testnet at:
+```
+0x1Ee5C0B33438aC921fAe7988E77b9c0aB6f7CE2A
+```
+
+The contract includes a `faucet()` function that mints 1000 tokens to the caller, useful for testing the notification flow.
+
+To deploy your own:
 
 ```bash
-NEXT_PUBLIC_URL=<url-from-cloudflared-or-ngrok>
+cd contracts
+forge build
+forge create src/MonSignal.sol:MonSignal \
+  --constructor-args 1000000000000000000000000 \
+  --rpc-url https://testnet-rpc.monad.xyz \
+  --private-key $PRIVATE_KEY
 ```
 
-#### Use the provided url
+## Project Structure
 
-`cloudflared` will generate a random subdomain and print it in the terminal for you to use. Any traffic to this URL will get sent to your local server.
-
-Enter the provided URL in the [Warpcast Embed tool](https://warpcast.com/~/developers/mini-apps/embed).
-
-![embed-tool](https://docs.monad.xyz/img/guides/farcaster-miniapp/1.png)
-
-Let's investigate the various components of the template.
-
-## Customizing the Mini App Embed
-
-Mini App Embed is how the Mini App shows up in the feed or in a chat conversation when the URL of the app is shared.
-
-The Mini App Embed looks like this:
-
-![embed-preview](https://docs.monad.xyz/img/guides/farcaster-miniapp/2.png)
-
-You can customize this by editing the file `app/page.tsx`:
-
-```js
-...
-
-const appUrl = env.NEXT_PUBLIC_URL;
-
-const frame = {
-  version: "next",
-  imageUrl: `${appUrl}/images/feed.png`, // Embed image URL (3:2 image ratio)
-  button: {
-    title: "Template", // Text on the embed button
-    action: {
-      type: "launch_frame",
-      name: "Monad Farcaster MiniApp Template",
-      url: appUrl, // URL that is opened when the embed button is tapped or clicked.
-      splashImageUrl: `${appUrl}/images/splash.png`,
-      splashBackgroundColor: "#f7f7f7",
-    },
-  },
-};
-
-...
+```
+├── app/
+│   ├── api/
+│   │   ├── trades/          # Trade feed endpoint
+│   │   ├── watchlist/       # Watchlist management
+│   │   ├── webhook/trade/   # Indexer webhook for notifications
+│   │   └── signal/          # Signal detail endpoint
+│   └── page.tsx             # Main app entry
+├── components/
+│   ├── views/
+│   │   ├── FeedView.tsx     # Trade feed with filters
+│   │   └── WatchlistView.tsx # Manage watchlist
+│   └── ui/
+│       ├── TradeCard.tsx    # Individual trade display
+│       └── SignalDetailModal.tsx # Signal deep-link view
+├── lib/
+│   ├── envio.ts             # GraphQL client for indexer
+│   ├── neynar.ts            # Farcaster API client
+│   └── redis.ts             # Upstash Redis client
+├── indexer/
+│   ├── config.yaml          # Envio indexer config
+│   ├── schema.graphql       # Trade & Account entities
+│   └── src/EventHandlers.ts # ERC20 Transfer handler
+└── contracts/
+    └── src/MonSignal.sol    # Test ERC20 token
 ```
 
-You can either edit the URLs for the images or replace the images in `public/images` folder in the template.
+## Contributing
 
-Once you are happy with the changes, click `Refetch` in the Embed tool to get the latest configuration.
+Contributions are welcome! Please open an issue or PR.
 
-> [!NOTE]
-> If you are developing locally, ensure that your Next.js app is running locally and the cloudflare tunnel is open. 
+## License
 
-
-## Customizing the Splash Screen
-
-Upon opening the Mini App, the first thing the user will see is the Splash screen:
-
-![splash-screen](https://docs.monad.xyz/img/guides/farcaster-miniapp/3.png)
-
-You can edit the `app/page.tsx` file to customize the Splash screen.
-
-```js
-...
-
-const appUrl = env.NEXT_PUBLIC_URL;
-
-const frame = {
-  version: "next",
-  imageUrl: `${appUrl}/images/feed.png`,
-  button: {
-    title: "Launch Template",
-    action: {
-      type: "launch_frame",
-      name: "Monad Farcaster MiniApp Template",
-      url: appUrl,
-      splashImageUrl: `${appUrl}/images/splash.png`, // App icon in the splash screen (200px * 200px)
-      splashBackgroundColor: "#f7f7f7", // Splash screen background color
-    },
-  },
-};
-
-...
-```
-
-For `splashImageUrl`, you can either change the URL or replace the image in `public/images` folder in the template.
-
-## Modifying the Mini App
-
-Upon opening the template Mini App, you should see a screen like this:
-
-<img width="1512" alt="4" src="https://github.com/user-attachments/assets/259a3dd2-17ee-4afd-8942-ad83a92f6335" />
-
-
-The code for this screen is in the `components/pages/app.tsx` file:
-
-```tsx
-export default function Home() {
-  const { context } = useMiniAppContext();
-  return (
-    // SafeAreaContainer component makes sure that the app margins are rendered properly depending on which client is being used.
-    <SafeAreaContainer insets={context?.client.safeAreaInsets}>
-      {/* You replace the Demo component with your home component */}
-      <Demo />
-    </SafeAreaContainer>
-  )
-}
-```
-
-You can remove or edit the code in this file to build your Mini App.
-
-### Accessing User Context
-
-<img width="1130" alt="5" src="https://github.com/user-attachments/assets/4448c141-d159-4538-abda-a175d02330a7" />
-
-
-Your Mini App receives various information about the user, including `username`, `fid`, `displayName`, `pfpUrl` and other fields.
-
-The template provides a helpful hook `useMiniAppContext` that you can use to access these fields:
-
-```js
-export function User() {
-    const { context } = useMiniAppContext();
-    return <p>{context.user.username}</p>
-}
-```
-
-The template also provide an example of the same in `components/Home/User.tsx` file.
-
-You can learn more about Context [here](https://miniapps.farcaster.xyz/docs/sdk/context).
-
-### Performing App Actions
-
-![composeCast](https://docs.monad.xyz/img/guides/farcaster-miniapp/composeCast.gif)
-
-Mini Apps have the capability to perform native actions that enhance the user experience!
-
-Actions like:
-
-- `addFrame`: Allows the user to save (bookmark) the app in a dedicated section
-- `composeCast`: Allows the MiniApp to prompt the user to cast with prefilled text and media
-- `viewProfile`: Presents a profile of a Farcaster user in a client native UI
-
-Learn more about Mini App actions [here](https://miniapps.farcaster.xyz/docs/sdk/actions/add-frame)
-
-The template provides an easy way to access the actions via the `useMiniAppContext` hook!
-
-```js
-const { actions } = useMiniAppContext();
-```
-
-An example for the same can be found in `components/Home/FarcasterActions.tsx` file.
-
-### Prompting Wallet Actions
-
-<img width="1130" alt="6" src="https://github.com/user-attachments/assets/7dc46f05-bcbb-43b4-a0e6-4f421648dfc6" />
-
-Every user of Warpcast has a Warpcast wallet with Monad Testnet support.
-
-**Mini Apps can prompt the user to perform onchain actions**!
-
-The template provides an example for the same in `components/Home/WalletActions.tsx` file.
-
-```js
-export function WalletActions() {
-    ...
-
-    async function sendTransactionHandler() {
-        sendTransaction({
-            to: "0x7f748f154B6D180D35fA12460C7E4C631e28A9d7",
-            value: parseEther("1"),
-        });
-    }
-
-    ...
-}
-```
-
-> [!WARNING]
-> The Warpcast wallet supports multiple networks. It is recommended that you ensure that the right network is connected before prompting wallet actions.
-
-You can use viem's `switchChain` or equivalent to prompt a chain switch.
-
-```js
-// Switching to Monad Testnet
-switchChain({ chainId: 10143 });
-```
-
-The template has an example for the same in the `components/Home/WalletActions.tsx` file.
-:::
-
-## Modifying the `farcaster.json` file
-
-When publishing the Mini App you will need to have a `farcaster.json` file that follows the specification.
-
-You can edit the `app/.well-known/farcaster.json/route.ts` file with your app details before publishing the app!
-
-```ts
-...
-
-const appUrl = process.env.NEXT_PUBLIC_URL;
-const farcasterConfig = {
-    // accountAssociation details are required to associated the published app with it's author
-    accountAssociation: {
-        "header": "",
-        "payload": "",
-        "signature": ""
-    },
-    frame: {
-        version: "1",
-        name: "Monad Farcaster MiniApp Template",
-        iconUrl: `${appUrl}/images/icon.png`, // Icon of the app in the app store
-        homeUrl: `${appUrl}`, // Default launch URL
-        imageUrl: `${appUrl}/images/feed.png`, // Default image to show if shared in a feed.
-        screenshotUrls: [], // Visual previews of the app
-        tags: ["monad", "farcaster", "miniapp", "template"], // Descriptive tags for search
-        primaryCategory: "developer-tools",
-        buttonTitle: "Launch Template",
-        splashImageUrl: `${appUrl}/images/splash.png`, // URL of image to show on loading screen.	
-        splashBackgroundColor: "#ffffff", // Hex color code to use on loading screen.
-    }
-};
-
-...
-```
-
-You can learn more about publishing the Mini App and other manifest properties [here](https://miniapps.farcaster.xyz/docs/guides/publishing).
-
-## Conclusion
-
-In this guide, you explored Farcaster Mini Apps — the simplest way to create engaging, high-retention, and easily monetizable applications!
-
-You also discovered the key capabilities of Mini Apps and how you can use the [Monad Farcaster MiniApp Template](https://github.com/monad-developers/monad-miniapp-template) to build your own.
-
-For more details, check out the official Mini App documentation [here](https://miniapps.farcaster.xyz/).
+MIT
