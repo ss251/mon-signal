@@ -5,6 +5,9 @@ out/
 # Broadcast logs (may contain sensitive transaction data)
 broadcast/
 
+# Dependencies (installed via forge install)
+lib/
+
 # Docs
 docs/
 
