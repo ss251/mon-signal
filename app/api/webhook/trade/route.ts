@@ -54,36 +54,36 @@ export async function POST(request: Request) {
     // Mark as processed with TTL
     await redis.set(processedKey, '1', { ex: TTL.processedTx })
 
-    // Determine trader address (from or to, depending on trade direction)
-    // For now, we notify about both sender and receiver activity
-    const addresses = [fromAddress.toLowerCase(), toAddress.toLowerCase()]
-      .filter(addr => addr !== '0x0000000000000000000000000000000000000000')
+    // The trader is always the sender (fromAddress) - they initiated the transfer
+    const traderAddress = fromAddress.toLowerCase()
+    const isFromZeroAddress = traderAddress === '0x0000000000000000000000000000000000000000'
 
-    // Collect all watchers across both addresses
+    // Skip if from zero address (mint) - no trader to attribute
+    if (isFromZeroAddress) {
+      return NextResponse.json({ success: true, message: 'Mint event, no trader' })
+    }
+
+    // Check who is watching the trader's wallet
+    const watchingKey = KEYS.watching(traderAddress)
+    const watchers = await redis.smembers(watchingKey)
     const watcherFids = new Set<number>()
-    for (const address of addresses) {
-      const watchingKey = KEYS.watching(address)
-      const watchers = await redis.smembers(watchingKey)
-      for (const watcher of watchers) {
-        watcherFids.add(typeof watcher === 'string' ? parseInt(watcher, 10) : watcher as number)
-      }
+    for (const watcher of watchers) {
+      watcherFids.add(typeof watcher === 'string' ? parseInt(watcher, 10) : watcher as number)
     }
 
     if (watcherFids.size === 0) {
       return NextResponse.json({ success: true, message: 'No watchers' })
     }
 
-    // Look up Farcaster user info for the trader
-    const traderInfo = await getUsersByWalletAddress(addresses)
+    // Look up Farcaster user info for the trader (sender)
+    const traderInfo = await getUsersByWalletAddress([traderAddress])
     let traderUsername = 'Someone'
     let traderFid: number | null = null
 
-    for (const [addr, users] of Object.entries(traderInfo)) {
-      if (users && Array.isArray(users) && users.length > 0) {
-        traderUsername = users[0].username
-        traderFid = users[0].fid
-        break
-      }
+    const traderUsers = traderInfo[traderAddress]
+    if (traderUsers && Array.isArray(traderUsers) && traderUsers.length > 0) {
+      traderUsername = traderUsers[0].username
+      traderFid = traderUsers[0].fid
     }
 
     // Filter watchers by rate limit

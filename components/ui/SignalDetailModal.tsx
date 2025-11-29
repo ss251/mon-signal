@@ -31,17 +31,29 @@ export function SignalDetailModal({ signal, onClose }: SignalDetailModalProps) {
     }, 300)
   }
 
-  const handleCopyTrade = () => {
+  const handleCopyTrade = async () => {
     if (!signal) return
 
-    if (signal.type === 'buy') {
-      sdk.actions.swapToken({
-        buyToken: signal.token.address as `0x${string}`,
-      })
-    } else {
-      sdk.actions.swapToken({
-        sellToken: signal.token.address as `0x${string}`,
-      })
+    // Build CAIP-19 asset ID for the token
+    // Format: eip155:{chainId}/erc20:{tokenAddress}
+    // Monad Testnet chainId is 10143, Monad Mainnet is 143
+    const chainId = 143 // Monad Mainnet
+    const tokenAssetId = `eip155:${chainId}/erc20:${signal.token.address}`
+
+    try {
+      if (signal.type === 'buy') {
+        // User wants to buy the same token the trader bought
+        await sdk.actions.swapToken({
+          buyToken: tokenAssetId,
+        })
+      } else {
+        // User wants to sell the same token the trader sold
+        await sdk.actions.swapToken({
+          sellToken: tokenAssetId,
+        })
+      }
+    } catch (error) {
+      console.error('Failed to open swap:', error)
     }
   }
 
