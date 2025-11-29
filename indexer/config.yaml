@@ -8,9 +8,10 @@ field_selection:
     - hash
 
 networks:
-  - id: 143 # Monad Mainnet
-    start_block: 0
-    # Uses Envio HyperSync natively (no custom RPC needed)
+  - id: 10143 # Monad Testnet
+    start_block: 52500000
+    hypersync_config:
+      url: https://monad-testnet.hypersync.xyz
     contracts:
       - name: ERC20
         handler: src/EventHandlers.ts
