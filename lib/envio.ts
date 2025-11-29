@@ -112,6 +112,58 @@ export async function fetchTradesByAddress(
   return result.data.Trade
 }
 
+export async function fetchTradesByAddresses(
+  addresses: string[],
+  limit = 50
+): Promise<IndexedTrade[]> {
+  if (addresses.length === 0) return []
+
+  // Build OR conditions for from/to addresses
+  const normalizedAddresses = addresses.map(a => a.toLowerCase())
+
+  const query = `
+    query TradesByAddresses($addresses: [String!]!, $limit: Int!) {
+      Trade(
+        limit: $limit,
+        order_by: {blockTimestamp: desc},
+        where: {
+          _or: [
+            {fromAddress: {_in: $addresses}},
+            {toAddress: {_in: $addresses}}
+          ]
+        }
+      ) {
+        id
+        txHash
+        logIndex
+        blockNumber
+        blockTimestamp
+        tokenAddress
+        fromAddress
+        toAddress
+        amount
+      }
+    }
+  `
+
+  const response = await fetch(ENVIO_GRAPHQL_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-hasura-admin-secret': ENVIO_ADMIN_SECRET,
+    },
+    body: JSON.stringify({ query, variables: { addresses: normalizedAddresses, limit } }),
+    cache: 'no-store',
+  })
+
+  if (!response.ok) {
+    throw new Error(`Envio API error: ${response.status}`)
+  }
+
+  const result: TradesResponse = await response.json()
+  return result.data.Trade
+}
+
 export async function getTradeCount(): Promise<number> {
   const query = `
     query TradeCount {

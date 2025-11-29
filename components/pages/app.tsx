@@ -6,10 +6,10 @@ import { SafeAreaContainer } from '@/components/safe-area-container'
 import { Header } from '@/components/ui/Header'
 import { BottomNav } from '@/components/ui/BottomNav'
 import { FeedView } from '@/components/views/FeedView'
-import { TrendingView } from '@/components/views/TrendingView'
+import { WatchlistView } from '@/components/views/WatchlistView'
 import { SettingsView } from '@/components/views/SettingsView'
 
-type Tab = 'feed' | 'trending' | 'settings'
+type Tab = 'feed' | 'watchlist' | 'settings'
 
 export default function App() {
   const { context, isLoading, isSDKLoaded } = useFrame()
@@ -77,8 +77,8 @@ export default function App() {
         <Header />
 
         <main className="flex-1 overflow-y-auto hide-scrollbar">
-          {activeTab === 'feed' && <FeedView />}
-          {activeTab === 'trending' && <TrendingView />}
+          {activeTab === 'feed' && <FeedView onNavigateToWatchlist={() => setActiveTab('watchlist')} />}
+          {activeTab === 'watchlist' && <WatchlistView />}
           {activeTab === 'settings' && <SettingsView />}
         </main>
 

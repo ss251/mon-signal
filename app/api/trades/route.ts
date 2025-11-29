@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server'
-import { fetchRecentTrades, type IndexedTrade } from '@/lib/envio'
-import { getUsersByWalletAddress } from '@/lib/neynar'
+import { fetchRecentTrades, fetchTradesByAddresses, type IndexedTrade } from '@/lib/envio'
+import { getUsersByWalletAddress, getUserFollowing } from '@/lib/neynar'
+import { redis, KEYS } from '@/lib/redis'
+
+// Disable caching for this route
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export type TradeResponse = {
   id: string
@@ -64,13 +69,64 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
-    const fid = searchParams.get('fid') // Optional: filter by user's following
+    const fidParam = searchParams.get('fid') // Filter by user's watchlist
 
-    // Fetch recent trades from Envio
-    const trades = await fetchRecentTrades(limit)
+    let trades: IndexedTrade[]
+    let watchlistWallets: string[] = []
+    let watchlistFidToUser: Map<number, { fid: number; username: string; displayName: string; pfpUrl?: string }> = new Map()
+
+    if (fidParam) {
+      const fid = parseInt(fidParam, 10)
+
+      // Get user's watchlist FIDs
+      const watchlistKey = KEYS.watchlist(fid)
+      const watchlistFids = await redis.smembers(watchlistKey)
+
+      if (watchlistFids.length > 0) {
+        // Get wallet addresses for watchlisted users
+        const following = await getUserFollowing(fid)
+
+        for (const follower of following) {
+          const targetFid = follower.user.fid
+          if (watchlistFids.includes(String(targetFid)) || watchlistFids.includes(targetFid as unknown as string)) {
+            // Add their wallets
+            if (follower.user.verified_addresses?.eth_addresses) {
+              watchlistWallets.push(...follower.user.verified_addresses.eth_addresses.map((a: string) => a.toLowerCase()))
+            }
+            if (follower.user.custody_address) {
+              watchlistWallets.push(follower.user.custody_address.toLowerCase())
+            }
+
+            // Cache user info for later
+            watchlistFidToUser.set(targetFid, {
+              fid: targetFid,
+              username: follower.user.username,
+              displayName: follower.user.display_name || follower.user.username,
+              pfpUrl: follower.user.pfp_url,
+            })
+          }
+        }
+
+        if (watchlistWallets.length > 0) {
+          // Fetch trades only from watchlist wallets
+          trades = await fetchTradesByAddresses(watchlistWallets, limit)
+        } else {
+          trades = []
+        }
+      } else {
+        // No watchlist, return empty
+        trades = []
+      }
+    } else {
+      // No fid provided, fetch recent trades (legacy behavior)
+      trades = await fetchRecentTrades(limit)
+    }
 
     if (trades.length === 0) {
-      return NextResponse.json({ trades: [] })
+      return NextResponse.json({
+        trades: [],
+        hasWatchlist: fidParam ? watchlistWallets.length > 0 : false,
+      })
     }
 
     // Collect unique addresses to look up Farcaster users
@@ -168,6 +224,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       trades: farcasterOnlyTrades,
+      hasWatchlist: fidParam ? watchlistWallets.length > 0 : false,
       stats: {
         total: trades.length,
         withFarcaster: farcasterOnlyTrades.length,
