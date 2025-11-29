@@ -8,10 +8,10 @@ field_selection:
     - hash
 
 networks:
-  - id: 10143 # Monad Testnet
-    start_block: 52500000
+  - id: 143 # Monad Mainnet
+    start_block: 38750000
     hypersync_config:
-      url: https://monad-testnet.hypersync.xyz
+      url: https://monad.hypersync.xyz
     contracts:
       - name: ERC20
         handler: src/EventHandlers.ts
