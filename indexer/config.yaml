@@ -10,8 +10,10 @@ field_selection:
 networks:
   - id: 10143 # Monad Testnet
     start_block: 52000000
-    rpc_config:
-      url: ${MONAD_TESTNET_RPC_URL}
+    # HyperSync should work natively for Monad Testnet
+    # If not, uncomment and set ENVIO_MONAD_TESTNET_RPC_URL env var:
+    # rpc_config:
+    #   url: ${MONAD_TESTNET_RPC_URL}
     contracts:
       - name: ERC20
         handler: src/EventHandlers.ts
