@@ -143,18 +143,6 @@ Open the [Warpcast Mini App Embed tool](https://warpcast.com/~/developers/mini-a
 
 ## Limitations
 
-### Farcaster SDK Swap Support
-
-The Farcaster Mini App SDK's `swapToken` action currently **does not support Monad** (neither mainnet chain ID 143 nor testnet chain ID 10143). When a user taps "Copy Trade", the app attempts to open the swap interface using the [CAIP-19](https://github.com/ChainAgnostic/CAIPs/blob/main/CAIPs/caip-19.md) asset identifier format:
-
-```typescript
-// Format: eip155:{chainId}/erc20:{tokenAddress}
-const tokenAssetId = `eip155:143/erc20:${tokenAddress}`
-await sdk.actions.swapToken({ buyToken: tokenAssetId })
-```
-
-However, since Monad is not yet in the supported chain list, the swap modal will fail to execute the trade. This is a Farcaster platform limitation that will be resolved when Monad is officially added to Warpcast's supported swap networks.
-
 ### Native Token Transfers
 
 The indexer only captures **ERC20 Transfer events**. Native MON transfers do not emit events and will not appear in the feed or trigger notifications. Only token contract interactions are indexed.

@@ -4,7 +4,7 @@ import { sdk } from '@farcaster/miniapp-sdk'
 
 export type Trade = {
   id: string
-  type: 'buy' | 'sell'
+  type: 'buy' | 'sell' | 'transfer'
   trader: {
     fid: number
     username: string
@@ -21,6 +21,7 @@ export type Trade = {
   amountUsd?: string
   timestamp: Date
   txHash: string
+  toAddress?: string
 }
 
 type TradeCardProps = {
@@ -30,6 +31,7 @@ type TradeCardProps = {
 
 export function TradeCard({ trade, index = 0 }: TradeCardProps) {
   const isBuy = trade.type === 'buy'
+  const isSell = trade.type === 'sell'
   const timeAgo = getTimeAgo(trade.timestamp)
 
   const handleViewProfile = () => {
@@ -37,16 +39,23 @@ export function TradeCard({ trade, index = 0 }: TradeCardProps) {
   }
 
   const handleCopyTrade = () => {
-    // Open swap form with the token pre-selected
-    // For buys: user wants to buy the same token
-    // For sells: user might want to sell the same token
     if (isBuy) {
+      // For buys: user wants to buy the same token
       sdk.actions.swapToken({
         buyToken: trade.token.address as `0x${string}`,
       })
-    } else {
+    } else if (isSell) {
+      // For sells: user wants to sell the same token
       sdk.actions.swapToken({
         sellToken: trade.token.address as `0x${string}`,
+      })
+    } else if (trade.toAddress) {
+      // For transfers: open send form with same token and recipient
+      // Using CAIP-19 format for Monad mainnet (chain ID 143)
+      const caip19Token = `eip155:143/erc20:${trade.token.address}`
+      sdk.actions.sendToken({
+        token: caip19Token,
+        recipientAddress: trade.toAddress as `0x${string}`,
       })
     }
   }
@@ -94,7 +103,7 @@ export function TradeCard({ trade, index = 0 }: TradeCardProps) {
       <div className="flex items-center gap-3 mb-4">
         <span
           className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${
-            isBuy ? 'signal-badge-buy' : 'signal-badge-sell'
+            isBuy ? 'signal-badge-buy' : isSell ? 'signal-badge-sell' : 'signal-badge-transfer'
           }`}
         >
           {trade.type}
@@ -129,8 +138,8 @@ export function TradeCard({ trade, index = 0 }: TradeCardProps) {
               </p>
             )}
           </div>
-          <span className={`text-2xl ${isBuy ? 'signal-buy' : 'signal-sell'}`}>
-            {isBuy ? '↗' : '↘'}
+          <span className={`text-2xl ${isBuy ? 'signal-buy' : isSell ? 'signal-sell' : 'signal-transfer'}`}>
+            {isBuy ? '↗' : isSell ? '↘' : '→'}
           </span>
         </div>
       </div>
@@ -138,7 +147,7 @@ export function TradeCard({ trade, index = 0 }: TradeCardProps) {
       {/* Actions */}
       <div className="flex gap-2">
         <button onClick={handleCopyTrade} className="btn-primary flex-1 text-sm py-3">
-          Copy Trade
+          Copy
         </button>
         <button
           onClick={() =>

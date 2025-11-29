@@ -9,7 +9,7 @@ export const revalidate = 0
 
 export type TradeResponse = {
   id: string
-  type: 'buy' | 'sell'
+  type: 'buy' | 'sell' | 'transfer'
   trader: {
     fid: number
     username: string
@@ -182,7 +182,7 @@ export async function GET(request: Request) {
       const isMint = trade.fromAddress === ZERO_ADDRESS
       const isBurn = trade.toAddress === ZERO_ADDRESS
 
-      let type: 'buy' | 'sell'
+      let type: 'buy' | 'sell' | 'transfer'
       let traderAddress: string
 
       if (isMint) {
@@ -192,9 +192,8 @@ export async function GET(request: Request) {
         type = 'sell'
         traderAddress = trade.fromAddress
       } else {
-        // Regular transfer: show as activity from the sender
-        // Could also show both as separate entries
-        type = 'sell' // From sender's perspective
+        // Regular transfer between wallets
+        type = 'transfer'
         traderAddress = trade.fromAddress
       }
 

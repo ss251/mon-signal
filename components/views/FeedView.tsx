@@ -20,7 +20,7 @@ export function FeedView({ onNavigateToWatchlist }: FeedViewProps) {
   const [hasFetched, setHasFetched] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<FilterType>('all')
-  const [stats, setStats] = useState({ buys: 0, sells: 0, volume: '0' })
+  const [stats, setStats] = useState({ buys: 0, sells: 0, transfers: 0 })
   const [hasWatchlist, setHasWatchlist] = useState(false)
   const isSubscribed = true // TODO: Check subscription status
   const lastFetchRef = useRef<number>(0)
@@ -61,6 +61,7 @@ export function FeedView({ onNavigateToWatchlist }: FeedViewProps) {
         amountUsd: t.amountUsd,
         timestamp: new Date(t.timestamp),
         txHash: t.txHash,
+        toAddress: t.toAddress,
       }))
 
       setTrades(transformedTrades)
@@ -68,7 +69,8 @@ export function FeedView({ onNavigateToWatchlist }: FeedViewProps) {
       // Calculate stats
       const buys = transformedTrades.filter((t) => t.type === 'buy').length
       const sells = transformedTrades.filter((t) => t.type === 'sell').length
-      setStats({ buys, sells, volume: '$--' })
+      const transfers = transformedTrades.filter((t) => t.type === 'transfer').length
+      setStats({ buys, sells, transfers })
     } catch (err) {
       console.error('Error fetching trades:', err)
       setError(err instanceof Error ? err.message : 'Failed to load trades')
@@ -193,8 +195,8 @@ export function FeedView({ onNavigateToWatchlist }: FeedViewProps) {
         </div>
         <div className="w-px h-8 bg-border-subtle" />
         <div className="text-center">
-          <p className="font-mono text-lg font-bold text-text-primary">{stats.volume}</p>
-          <p className="text-[10px] text-text-muted uppercase tracking-wider">Volume</p>
+          <p className="font-mono text-lg font-bold text-signal-transfer">{stats.transfers}</p>
+          <p className="text-[10px] text-text-muted uppercase tracking-wider">Transfers</p>
         </div>
       </div>
 

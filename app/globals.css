@@ -16,6 +16,8 @@
   --signal-buy-dim: rgba(0, 255, 136, 0.2);
   --signal-sell: #FF4757;
   --signal-sell-dim: rgba(255, 71, 87, 0.2);
+  --signal-transfer: #836EF9;
+  --signal-transfer-dim: rgba(131, 110, 249, 0.2);
 
   /* Neutrals */
   --bg-primary: #0A0A0F;
@@ -125,6 +127,16 @@ body::after {
   background: var(--signal-sell-dim);
   color: var(--signal-sell);
   border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.signal-transfer {
+  color: var(--signal-transfer);
+}
+
+.signal-badge-transfer {
+  background: var(--signal-transfer-dim);
+  color: var(--signal-transfer);
+  border: 1px solid rgba(131, 110, 249, 0.3);
 }
 
 /* Pulse animation for live data */
