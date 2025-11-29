@@ -57,13 +57,30 @@ export async function getUsersByWalletAddress(addresses: string[]) {
 
 /**
  * Get the list of users that a given FID is following.
+ * Fetches all pages if maxResults is not specified or > 100.
  */
-export async function getUserFollowing(fid: number, limit = 100) {
-  const response = await neynarClient.fetchUserFollowing({
-    fid,
-    limit,
-  });
-  return response.users;
+export async function getUserFollowing(fid: number, maxResults?: number) {
+  const allUsers: Awaited<ReturnType<typeof neynarClient.fetchUserFollowing>>['users'] = [];
+  let cursor: string | undefined;
+  const limit = 100; // Max per request
+
+  do {
+    const response = await neynarClient.fetchUserFollowing({
+      fid,
+      limit,
+      cursor,
+    });
+
+    allUsers.push(...response.users);
+    cursor = response.next?.cursor ?? undefined;
+
+    // Stop if we've reached the max results
+    if (maxResults && allUsers.length >= maxResults) {
+      return allUsers.slice(0, maxResults);
+    }
+  } while (cursor);
+
+  return allUsers;
 }
 
 /**
