@@ -8,8 +8,8 @@ field_selection:
     - hash
 
 networks:
-  - id: 10143 # Monad Testnet
-    start_block: 52000000
+  - id: 143 # Monad Mainnet
+    start_block: 0
     # Uses Envio HyperSync natively (no custom RPC needed)
     contracts:
       - name: ERC20

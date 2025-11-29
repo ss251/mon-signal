@@ -5,6 +5,7 @@ import {
 } from "@farcaster/miniapp-node";
 import { NextRequest } from "next/server";
 import { sendFrameNotification } from "@/lib/notifs";
+import { subscribeUser, unsubscribeUser } from "@/lib/social-graph";
 
 /**
  * Webhook handler for Farcaster Mini App events.
@@ -51,7 +52,8 @@ export async function POST(request: NextRequest) {
 
   switch (event.event) {
     case "frame_added":
-      // User added the mini app - send welcome notification
+      // User added the mini app - subscribe them and send welcome notification
+      await subscribeUser(fid);
       if (event.notificationDetails) {
         await sendFrameNotification({
           fid,
@@ -62,10 +64,13 @@ export async function POST(request: NextRequest) {
       break;
 
     case "frame_removed":
-      // User removed the mini app - could clean up subscriptions here
+      // User removed the mini app - unsubscribe them
+      await unsubscribeUser(fid);
       break;
 
     case "notifications_enabled":
+      // Subscribe and build social graph
+      await subscribeUser(fid);
       await sendFrameNotification({
         fid,
         title: "Notifications enabled",
@@ -74,7 +79,8 @@ export async function POST(request: NextRequest) {
       break;
 
     case "notifications_disabled":
-      // Notifications disabled - Neynar will handle not sending to this user
+      // Unsubscribe - no more notifications
+      await unsubscribeUser(fid);
       break;
   }
 

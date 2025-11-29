@@ -39,7 +39,7 @@ function formatAmount(amount: string, decimals = 18): string {
   const whole = value / divisor
   const fraction = value % divisor
 
-  if (whole > 0n) {
+  if (whole > BigInt(0)) {
     return whole.toString()
   }
 
@@ -163,11 +163,11 @@ export async function GET(request: Request) {
       }
     })
 
-    // Optionally filter to only show trades from Farcaster users
+    // Only show trades from Farcaster users - this is the core value prop
     const farcasterOnlyTrades = transformedTrades.filter((t) => t.trader !== null)
 
     return NextResponse.json({
-      trades: farcasterOnlyTrades.length > 0 ? farcasterOnlyTrades : transformedTrades,
+      trades: farcasterOnlyTrades,
       stats: {
         total: trades.length,
         withFarcaster: farcasterOnlyTrades.length,
