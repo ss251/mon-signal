@@ -18,6 +18,7 @@ export type Trade = {
     logoUrl?: string
   }
   amount: string
+  rawAmount?: string
   amountUsd?: string
   timestamp: Date
   txHash: string
@@ -55,6 +56,7 @@ export function TradeCard({ trade, index = 0 }: TradeCardProps) {
       const caip19Token = `eip155:143/erc20:${trade.token.address}`
       sdk.actions.sendToken({
         token: caip19Token,
+        amount: trade.rawAmount,
         recipientAddress: trade.toAddress as `0x${string}`,
       })
     }

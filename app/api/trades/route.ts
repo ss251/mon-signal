@@ -23,6 +23,7 @@ export type TradeResponse = {
     logoUrl?: string
   }
   amount: string
+  rawAmount: string
   amountUsd?: string
   timestamp: string
   txHash: string
@@ -211,6 +212,7 @@ export async function GET(request: Request) {
           address: trade.tokenAddress,
         },
         amount: formatAmount(trade.amount, tokenMetadata?.decimals || 18),
+        rawAmount: String(trade.amount),
         timestamp: new Date(trade.blockTimestamp * 1000).toISOString(),
         txHash: trade.txHash,
         fromAddress: trade.fromAddress,

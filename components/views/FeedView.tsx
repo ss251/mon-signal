@@ -58,6 +58,7 @@ export function FeedView({ onNavigateToWatchlist }: FeedViewProps) {
         },
         token: t.token,
         amount: t.amount,
+        rawAmount: t.rawAmount,
         amountUsd: t.amountUsd,
         timestamp: new Date(t.timestamp),
         txHash: t.txHash,
